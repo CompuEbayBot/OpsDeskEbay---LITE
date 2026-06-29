@@ -1,0 +1,25 @@
+# Do not upload local Node/runtime files
+node_modules/
+node.exe
+npm
+npm.cmd
+npm.ps1
+npx
+npx.cmd
+npx.ps1
+nodevars.bat
+
+# Local helper scripts
+install_tools.bat
+run-server.bat
+
+# Server/private files not needed for GitHub Pages Lite
+server.js
+.env
+.env.*
+price_history.json
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/

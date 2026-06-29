@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpsDesk Lite - Daily Orders</title>
+    <script src="./BrowserPrint-3.1.250.min.js"></script>
+    <script src="./BrowserPrint-Zebra-1.1.250.min.js"></script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      :root {
+        --bg: #070b12;
+        --surface: #111827;
+        --surface2: #172033;
+        --surface3: #08101d;
+        --border: #2d3d55;
+        --text: #f4f8ff;
+        --muted: #9aa8bd;
+        --accent: #16d9f5;
+        --accent2: #12e68a;
+        --danger: #ff3b5c;
+        --warn: #ffb020;
+        --mono: ui-monospace, Menlo, Consolas, monospace;
+        --sans: Inter, Arial, sans-serif;
+      }
+      html, body { margin: 0; min-height: 100vh; }
+      body {
+        background:
+          radial-gradient(circle at 18% 0%, rgba(18,230,138,.14), transparent 34%),
+          radial-gradient(circle at 82% 14%, rgba(22,217,245,.12), transparent 34%),
+          linear-gradient(180deg, #08111b 0%, #070b12 58%, #060914 100%);
+        color: var(--text);
+        font-family: var(--sans);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(22,217,245,.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(18,230,138,.028) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.78), rgba(0,0,0,.16));
+      }
+      .app { position: relative; z-index: 1; width: min(1380px, calc(100% - 44px)); margin: 0 auto; padding: 32px 0 56px; }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 22px 24px;
+        border: 1px solid rgba(84,111,145,.62);
+        border-radius: 22px;
+        background: linear-gradient(135deg, rgba(16,31,48,.96), rgba(11,20,34,.96));
+        box-shadow: 0 24px 70px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.035);
+        margin-bottom: 22px;
+      }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .brand-icon { width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #041018; font-weight: 900; font-family: var(--mono); }
+      h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+      .subtitle { color: var(--muted); font-family: var(--mono); font-size: 12px; margin-top: 4px; }
+      .printer-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 10px 16px;
+        border: 1px solid rgba(84,111,145,.7);
+        border-radius: 999px;
+        background: #08101d;
+        color: #afbdd1;
+        font-family: var(--mono);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .printer-badge.connected { border-color: rgba(18,230,138,.85); color: var(--accent2); background: rgba(18,230,138,.08); }
+      .printer-badge.error { border-color: rgba(255,59,92,.8); color: var(--danger); background: rgba(255,59,92,.08); }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+      .dot.pulse { animation: pulse 1.3s infinite; }
+      @keyframes pulse { 50% { opacity: .35; } }
+      .tabs { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px; margin-bottom: 22px; border: 1px solid rgba(84,111,145,.45); border-radius: 18px; background: rgba(8,16,29,.74); }
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 13px;
+        padding: 12px 16px;
+        cursor: pointer;
+        font-family: var(--mono);
+        font-weight: 800;
+      }
+      button:hover:not(:disabled) { transform: translateY(-1px); }
+      button:disabled { opacity: .45; cursor: not-allowed; }
+      .primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #041018; }
+      .secondary, .tab-btn { background: rgba(20,30,47,.95); color: #e5efff; border: 1px solid rgba(83,106,139,.78); }
+      .tab-btn { flex: 1; min-width: 170px; }
+      .tab-btn.active { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #031018; border-color: transparent; }
+      .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr); gap: 24px; align-items: start; }
+      .panel { overflow: hidden; border: 1px solid rgba(84,111,145,.62); border-radius: 20px; background: linear-gradient(180deg, rgba(18,26,42,.96), rgba(11,17,30,.96)); box-shadow: 0 24px 70px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.035); margin-bottom: 22px; }
+      .panel-title { padding: 17px 22px; background: linear-gradient(90deg, rgba(22,217,245,.13), rgba(18,230,138,.06)); border-bottom: 1px solid rgba(84,111,145,.52); color: #d9faff; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
+      .panel-body { padding: 22px; }
+      .instructions { padding: 16px 18px; margin-bottom: 18px; border: 1px solid rgba(18,230,138,.38); border-left: 4px solid var(--accent2); border-radius: 14px; background: linear-gradient(90deg, rgba(18,230,138,.11), rgba(22,217,245,.045)); }
+      .instructions p, .hint, .small { color: var(--muted); font-family: var(--mono); font-size: 12px; line-height: 1.55; margin: 0; }
+      label { display: block; margin: 0 0 9px; color: #afbdd1; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+      input, textarea, select { width: 100%; min-height: 44px; padding: 12px 14px; border: 1px solid rgba(83,106,139,.78); border-radius: 13px; background: #08101d; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; }
+      textarea { min-height: 190px; resize: vertical; line-height: 1.45; }
+      input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(22,217,245,.14); }
+      .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .btn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+      .metric { position: relative; overflow: hidden; min-height: 76px; padding: 16px; border: 1px solid rgba(83,106,139,.7); border-radius: 16px; background: linear-gradient(180deg, rgba(8,16,29,.96), rgba(6,11,20,.96)); }
+      .metric::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+      .metric strong { display: block; color: var(--accent); font-size: 26px; font-weight: 900; }
+      .metric span { color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+      .preview-shell { padding: 24px; border-radius: 18px; background: linear-gradient(135deg, #eef3fb, #d9e4f0); }
+      .label-preview { width: 100%; aspect-ratio: 4 / 1; max-width: 760px; margin: 0 auto; background: #fff; color: #000; border: 1px solid #d7d7d7; border-radius: 3px; position: relative; overflow: hidden; font-family: Arial, sans-serif; box-shadow: 0 18px 40px rgba(0,0,0,.2); }
+      .pv-count { position: absolute; left: 28px; top: 42px; font-weight: 900; white-space: nowrap; transform-origin: left top; }
+      .pv-block { position: absolute; left: 0; top: 8px; right: 0; text-align: center; padding-left: 150px; padding-right: 130px; }
+      .pv-title { font-weight: 900; font-size: clamp(14px, 2.1vw, 22px); line-height: 1.05; white-space: nowrap; }
+      .pv-order { font-weight: 900; font-size: clamp(13px, 1.8vw, 19px); white-space: nowrap; }
+      .pv-human { text-align: center; font-weight: 900; font-size: clamp(11px, 1.55vw, 17px); white-space: nowrap; margin-top: 4px; }
+      .pv-bars { margin: 3px auto 0; height: 46px; width: min(66%, 315px); display: flex; justify-content: center; align-items: stretch; gap: 1px; }
+      .pv-bars span { display: block; background: #000; width: 2px; }
+      .pv-sku { text-align: center; font-weight: 900; font-size: clamp(10px, 1.5vw, 15px); white-space: nowrap; margin-top: 2px; }
+      .pv-charger { position: absolute; right: 16px; bottom: 9px; width: 138px; min-height: 40px; border: 2px solid #000; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 900; font-size: 12px; overflow-wrap: anywhere; padding: 4px; }
+      .pv-charger:empty { display: none; }
+      .queue { max-height: 330px; overflow-y: auto; border: 1px solid rgba(83,106,139,.7); border-radius: 16px; background: linear-gradient(180deg, rgba(8,16,29,.96), rgba(6,11,20,.96)); }
+      .queue-row { display: grid; grid-template-columns: 72px 1fr; gap: 14px; padding: 14px; border-bottom: 1px solid rgba(83,106,139,.35); cursor: pointer; font-family: var(--mono); font-size: 11px; }
+      .queue-row:hover, .queue-row.active { background: linear-gradient(90deg, rgba(22,217,245,.12), rgba(18,230,138,.08)); }
+      .queue-row.printed { opacity: .58; }
+      .queue-index { color: var(--accent2); font-weight: 900; }
+      .queue-main strong, .queue-main span { display: block; word-break: break-word; }
+      .queue-main span { color: var(--muted); }
+      .progress-wrap { height: 12px; margin: 16px 0 4px; border: 1px solid rgba(83,106,139,.7); border-radius: 999px; background: #08101d; overflow: hidden; }
+      .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s ease; }
+      .status { margin-top: 18px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(83,106,139,.72); background: rgba(8,16,29,.88); color: var(--muted); font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+      .status.ok { color: var(--accent2); border-color: rgba(18,230,138,.55); background: rgba(18,230,138,.07); }
+      .status.err { color: var(--danger); border-color: rgba(255,59,92,.55); background: rgba(255,59,92,.08); }
+      .status.warn { color: var(--warn); border-color: rgba(255,176,32,.55); background: rgba(255,176,32,.08); }
+      .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.72); align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+      .modal-overlay.open { display: flex; }
+      .modal { width: min(480px, 100%); padding: 22px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.38); }
+      .printer-item { border: 1px solid var(--border); border-radius: 14px; padding: 13px; cursor: pointer; margin-bottom: 10px; font-family: var(--mono); }
+      .printer-item:hover, .printer-item.selected { border-color: var(--accent2); background: rgba(0,229,160,.1); }
+      @media (max-width: 1020px) { .grid { grid-template-columns: 1fr; } }
+      @media (max-width: 700px) { .app { width: min(100% - 28px, 1380px); padding-top: 18px; } .topbar { flex-direction: column; align-items: stretch; } .row, .metrics { grid-template-columns: 1fr; } .panel-body { padding: 18px; } }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon">OD</div>
+          <div>
+            <h1>OpsDesk Lite</h1>
+            <div class="subtitle">Daily Orders · Picking CSV · Zebra Label Printing</div>
+          </div>
+        </div>
+        <div class="printer-badge" id="printerBadge" onclick="openPrinterModal()">
+          <span class="dot pulse" id="statusDot"></span>
+          <span id="badgeText">Scanning...</span>
+        </div>
+      </header>
+
+      <div class="tabs" role="tablist" aria-label="Daily orders and printing tools">
+        <button class="tab-btn active" id="dailyTabBtn" data-tab="daily" type="button" onclick="switchPrintTab('daily')">Daily Orders</button>
+        <button class="tab-btn" id="batchTabBtn" data-tab="batch" type="button" onclick="switchPrintTab('batch')">Batch CSV</button>
+        <button class="tab-btn" id="singleTabBtn" data-tab="single" type="button" onclick="switchPrintTab('single')">Single Label</button>
+      </div>
+
+      <main class="grid">
+        <section>
+          <div class="tab-panel active" id="dailyTabPanel">
+            <div class="panel">
+              <div class="panel-title">Daily Orders CSV Parser</div>
+              <div class="panel-body">
+                <div class="instructions">
+                  <p>Paste raw eBay order-page text. The parser keeps <strong>HW-</strong> orders that still need pull, and skips carrier-scanned, canceled, refunded, return, and delivered blocks.</p>
+                </div>
+                <label for="dailyOrdersInput">Raw eBay Order Text</label>
+                <textarea id="dailyOrdersInput" spellcheck="false" placeholder="Paste the uncleaned eBay order page text here..."></textarea>
+                <div class="btn-row">
+                  <button class="primary" type="button" onclick="parseDailyOrders()">Build CSV Lines</button>
+                  <button class="primary" type="button" onclick="copyDailyOrderCsvLines()">Copy CSV Lines</button>
+                  <button class="secondary" type="button" onclick="downloadDailyOrdersCsv()">Download CSV</button>
+                  <button class="secondary" type="button" onclick="clearDailyOrders()">Clear</button>
+                </div>
+                <div class="metrics" id="dailyOrdersSummary">
+                  <div class="metric"><strong>0</strong><span>Orders</span></div>
+                  <div class="metric"><strong>0</strong><span>Units</span></div>
+                  <div class="metric"><strong>0</strong><span>Date Groups</span></div>
+                </div>
+                <label for="dailyOrdersResults">CSV Output - SKU,QTY,ORDERNUMBER</label>
+                <textarea id="dailyOrdersResults" spellcheck="false" readonly placeholder="CSV rows will appear here after Build CSV Lines."></textarea>
+                <div class="hint" style="margin-top: 10px;">Copy CSV Lines copies exactly what is shown above. Download CSV includes Date sold, Custom Label, Qty, and Order Number.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="batchTabPanel">
+            <div class="panel">
+              <div class="panel-title">Batch Print CSV Import</div>
+              <div class="panel-body">
+                <div class="row">
+                  <div>
+                    <label for="csvFile">Local CSV File</label>
+                    <input id="csvFile" type="file" accept=".csv,text/csv" />
+                  </div>
+                  <div>
+                    <label for="csvInput">Or Paste CSV</label>
+                    <textarea id="csvInput" spellcheck="false" placeholder="sku,qty,order_number,serial_number,charger&#10;SKU-EXAMPLE,1,09 - 14566 - 35674,C02VG2EMG8WL,USB-C 65W"></textarea>
+                  </div>
+                </div>
+                <div class="hint" style="margin-top: 10px;">Place <strong>labels.csv</strong> in this folder to auto-load on open. Required columns: <strong>sku</strong>, <strong>order_number</strong>, and <strong>serial_number</strong>. Optional: <strong>qty</strong>, <strong>charger</strong>.</div>
+                <div class="btn-row">
+                  <button class="primary" type="button" onclick="loadBatchFromText()">Load CSV Batch</button>
+                  <button class="secondary" type="button" onclick="clearBatch()">Clear</button>
+                </div>
+                <div class="metrics">
+                  <div class="metric"><strong id="batchCount">0</strong><span>Labels</span></div>
+                  <div class="metric"><strong id="batchCurrent">-</strong><span>Selected</span></div>
+                  <div class="metric"><strong id="batchPrinted">0</strong><span>Printed</span></div>
+                </div>
+                <div class="queue" id="batchQueue"><div class="small" style="padding: 12px">No batch loaded.</div></div>
+                <div class="progress-wrap"><div class="progress-bar" id="batchProgress"></div></div>
+                <div class="btn-row">
+                  <button class="secondary" type="button" onclick="selectPreviousBatchLabel()">Previous</button>
+                  <button class="secondary" type="button" onclick="selectNextBatchLabel()">Next</button>
+                  <button class="primary" type="button" id="batchPrintBtn" onclick="printBatch()">Print Batch</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="singleTabPanel">
+            <div class="panel">
+              <div class="panel-title">Single Label Print</div>
+              <div class="panel-body">
+                <div class="row">
+                  <div><label for="currentNum">Current Label #</label><input id="currentNum" type="number" min="1" value="1" /></div>
+                  <div><label for="totalNum">Total Labels</label><input id="totalNum" type="number" min="1" value="1" /></div>
+                </div>
+                <div style="margin-top: 14px"><label for="orderNumber">Order Number</label><input id="orderNumber" type="text" value="09 - 14566 - 35674" /></div>
+                <div class="row" style="margin-top: 14px">
+                  <div><label for="barcodeValue">SN / Custom Label</label><input id="barcodeValue" type="text" value="C02VG2EMG8WL" /></div>
+                  <div><label for="skuValue">SKU</label><input id="skuValue" type="text" value="SKU-EXAMPLE" /></div>
+                </div>
+                <div class="row" style="margin-top: 14px">
+                  <div><label for="chargerValue">Charger Optional</label><input id="chargerValue" type="text" value="" placeholder="Leave blank for normal label" /></div>
+                  <div><label for="copies">Copies</label><input id="copies" type="number" min="1" max="99" value="1" /></div>
+                </div>
+                <div class="btn-row">
+                  <button class="primary" id="printBtn" type="button" onclick="printLabel()">Print Label</button>
+                  <button class="secondary" type="button" onclick="testPrint()">Test</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside>
+          <div class="panel">
+            <div class="panel-title">Label Preview</div>
+            <div class="panel-body">
+              <div class="preview-shell">
+                <div class="label-preview">
+                  <div class="pv-count" id="pvCount">1 of 1</div>
+                  <div class="pv-block">
+                    <div class="pv-title">SOLD EBAY ORDER:</div>
+                    <div class="pv-order" id="pvOrder">09 - 14566 - 35674</div>
+                    <div class="pv-human" id="pvHuman">C02VG2EMG8WL</div>
+                    <div class="pv-bars" id="pvBars"></div>
+                    <div class="pv-sku" id="pvSku">SKU-EXAMPLE</div>
+                  </div>
+                  <div class="pv-charger" id="pvCharger"></div>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="secondary" type="button" onclick="discoverPrinters()">Rescan Printer</button>
+              </div>
+            </div>
+          </div>
+          <div class="status" id="statusbar">Initializing Browser Print...</div>
+        </aside>
+      </main>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBg(event)">
+      <div class="modal">
+        <div class="panel-title" style="margin: -22px -22px 16px">Select Printer</div>
+        <div id="printerList"></div>
+        <div class="btn-row">
+          <button class="secondary" type="button" onclick="discoverPrinters()">Rescan</button>
+          <button class="secondary" type="button" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function escHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+      function csvEscape(value) {
+        const s = String(value == null ? "" : value);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
+      function clampInt(v, min, max) {
+        const n = parseInt(v, 10);
+        if (isNaN(n)) return min;
+        return Math.max(min, Math.min(max, n));
+      }
+      function cleanText(s) { return String(s).replace(/[\^~]/g, "").trim(); }
+      function cleanBarcode(s) { return String(s).replace(/[\^~]/g, "").replace(/[^\x20-\x7E]/g, "").trim(); }
+      function truncate(s, n) { s = String(s || ""); return s.length > n ? s.substring(0, n) + "..." : s; }
+      function zplSafe(s) { return String(s).replace(/\^/g, "").replace(/~/g, ""); }
+      function fmt(n) { return "$" + Number(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+      const DAILY_ORDER_EXCLUDED_STATUSES = ["Canceled", "Refunded", "Return started", "Return shipped", "Awaiting return shipment"];
+      const DAILY_ORDER_MONTHS = { Jan:1, January:1, Feb:2, February:2, Mar:3, March:3, Apr:4, April:4, May:5, Jun:6, June:6, Jul:7, July:7, Aug:8, August:8, Sep:9, Sept:9, September:9, Oct:10, October:10, Nov:11, November:11, Dec:12, December:12 };
+      let parsedDailyOrderRows = [];
+
+      function dailyOrderStart(line) {
+        const clean = String(line || "").trim();
+        return clean.startsWith("Ship by ") || clean === "Shipped" || clean.startsWith("Delivered ") || clean === "Canceled" || clean === "Refunded" || clean === "Return started" || clean === "Return shipped" || clean === "Awaiting return shipment";
+      }
+      function dailyOrderExcluded(block) {
+        const joined = block.join("\n");
+        if (DAILY_ORDER_EXCLUDED_STATUSES.some((status) => joined.includes(status))) return true;
+        if (/^Delivered\s+/m.test(joined)) return true;
+        if (/View return details/i.test(joined)) return true;
+        if (/See cancel details/i.test(joined)) return true;
+        return false;
+      }
+      function dailyOrderCarrierScanned(block) { return block.some((line) => /Carrier\s+scan(?:ned)?/i.test(line)); }
+      function dailyOrderMoneyLine(line) { return /^\$[\d,]+(?:\.\d{2})?$/.test(String(line || "").trim()); }
+      function dailyOrderDateToken(line) {
+        const match = String(line || "").trim().match(/^(Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\s+(\d{1,2})$/);
+        if (!match) return null;
+        return { month: DAILY_ORDER_MONTHS[match[1]], day: Number(match[2]) };
+      }
+      function dailyOrderFormatDate(month, day, year) { return `${month}/${day}/${year}`; }
+      function dailyOrderQty(line) {
+        const match = String(line || "").trim().match(/^(\d+)(?:\(\d+ available\))?$/);
+        return match ? match[1] : "";
+      }
+      function dailyOrderLooksLikeOrderNumber(value) { return /^(\d{2}-\d{5}-\d{5}|\d{5,})$/.test(String(value || "").trim()); }
+      function dailyOrderFindOrderNumber(block) {
+        const labelIndex = block.findIndex((line) => String(line).trim() === "Get shipping label");
+        if (labelIndex >= 0) {
+          for (let k = labelIndex + 1; k < block.length; k++) {
+            const value = String(block[k] || "").trim();
+            if (dailyOrderLooksLikeOrderNumber(value)) return value;
+          }
+        }
+        for (const item of block) {
+          const value = String(item || "").trim();
+          if (dailyOrderLooksLikeOrderNumber(value)) return value;
+        }
+        return "";
+      }
+      function dailyOrderFindQty(block) {
+        for (let k = 0; k < block.length; k++) {
+          if (String(block[k]).startsWith("ZIP code")) {
+            for (let q = k + 1; q < Math.min(k + 8, block.length); q++) {
+              const qty = dailyOrderQty(block[q]);
+              if (qty) return qty;
+            }
+          }
+        }
+        const skuIndex = block.findIndex((line) => /Custom label \(SKU\):/.test(line));
+        if (skuIndex >= 0) {
+          for (let q = skuIndex + 1; q < Math.min(skuIndex + 18, block.length); q++) {
+            const qty = dailyOrderQty(block[q]);
+            if (qty) return qty;
+          }
+        }
+        for (const item of block) {
+          const qty = dailyOrderQty(item);
+          if (qty) return qty;
+        }
+        return "";
+      }
+      function dailyOrderFindDateSold(block, year) {
+        const moneyPositions = [];
+        for (let k = 0; k < block.length; k++) if (dailyOrderMoneyLine(block[k])) moneyPositions.push(k);
+        if (moneyPositions.length) {
+          const start = moneyPositions[moneyPositions.length - 1] + 1;
+          for (let k = start; k < block.length; k++) {
+            const parsedDate = dailyOrderDateToken(block[k]);
+            if (parsedDate) return { dateSold: dailyOrderFormatDate(parsedDate.month, parsedDate.day, year), sortKey: new Date(year, parsedDate.month - 1, parsedDate.day).getTime() };
+          }
+        }
+        for (const item of block) {
+          const parsedDate = dailyOrderDateToken(item);
+          if (parsedDate) return { dateSold: dailyOrderFormatDate(parsedDate.month, parsedDate.day, year), sortKey: new Date(year, parsedDate.month - 1, parsedDate.day).getTime() };
+        }
+        return { dateSold: "Unknown date", sortKey: 0 };
+      }
+      function dailyOrderSplitBlocks(text) {
+        const lines = String(text || "").split(/\r?\n/).map((line) => line.trimEnd());
+        const blocks = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (!dailyOrderStart(lines[i])) continue;
+          const block = [];
+          for (let j = i; j < lines.length; j++) {
+            const current = String(lines[j] || "").trim();
+            if (j > i && dailyOrderStart(current)) break;
+            if (j > i && current === "Actions") break;
+            block.push(lines[j]);
+          }
+          if (block.some((line) => /Custom label \(SKU\):/.test(line))) blocks.push(block);
+        }
+        return blocks;
+      }
+      function parseDailyOrderRows(text) {
+        const rows = [];
+        const year = new Date().getFullYear();
+        const blocks = dailyOrderSplitBlocks(text);
+        for (const block of blocks) {
+          if (dailyOrderExcluded(block)) continue;
+          if (dailyOrderCarrierScanned(block)) continue;
+          let customLabel = "";
+          for (const item of block) {
+            const match = String(item || "").match(/Custom label \(SKU\):\s*(.+)/);
+            if (match) { customLabel = match[1].trim(); break; }
+          }
+          if (!customLabel.startsWith("HW-")) continue;
+          const qty = dailyOrderFindQty(block);
+          const orderNumber = dailyOrderFindOrderNumber(block);
+          const dateInfo = dailyOrderFindDateSold(block, year);
+          if (customLabel && qty && orderNumber) {
+            rows.push({ dateSold: dateInfo.dateSold, sortKey: dateInfo.sortKey, sku: customLabel, qty, orderNumber, customLabel, line: `${customLabel},${qty},${orderNumber}` });
+          }
+        }
+        rows.sort((a, b) => b.sortKey - a.sortKey);
+        return rows;
+      }
+      function dailyOrderCsvLines(rows) { return rows.map((row) => row.line).join("\n"); }
+      function renderDailyOrders(rows) {
+        const orders = rows.length;
+        const units = rows.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+        const dateGroups = new Set(rows.map((row) => row.dateSold)).size;
+        const summary = document.getElementById("dailyOrdersSummary");
+        if (summary) summary.innerHTML = `<div class="metric"><strong>${orders}</strong><span>Orders</span></div><div class="metric"><strong>${units}</strong><span>Units</span></div><div class="metric"><strong>${dateGroups}</strong><span>Date Groups</span></div>`;
+        const out = document.getElementById("dailyOrdersResults");
+        if (out) out.value = rows.length ? dailyOrderCsvLines(rows) : "";
+      }
+      function parseDailyOrders() {
+        const raw = document.getElementById("dailyOrdersInput").value.trim();
+        if (!raw) { setLabelStatus("warn", "Paste Daily Orders text first."); return []; }
+        const rows = parseDailyOrderRows(raw);
+        parsedDailyOrderRows = rows;
+        renderDailyOrders(rows);
+        setLabelStatus(rows.length ? "ok" : "warn", rows.length ? `Built ${rows.length} Daily Orders CSV line${rows.length === 1 ? "" : "s"}.` : "No HW orders needing pull were found.");
+        return rows;
+      }
+      function getDailyOrderRowsForOutput() { return parsedDailyOrderRows.length ? parsedDailyOrderRows : parseDailyOrders(); }
+      function copyTextToClipboard(text) {
+        if (!text) return Promise.resolve();
+        if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        temp.setAttribute("readonly", "");
+        temp.style.position = "fixed";
+        temp.style.left = "-9999px";
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        temp.remove();
+        return Promise.resolve();
+      }
+      function copyDailyOrderCsvLines() {
+        const rows = getDailyOrderRowsForOutput();
+        if (!rows.length) return setLabelStatus("warn", "No Daily Orders CSV lines to copy.");
+        copyTextToClipboard(dailyOrderCsvLines(rows)).then(() => setLabelStatus("ok", `Copied ${rows.length} CSV line${rows.length === 1 ? "" : "s"}.`)).catch((err) => setLabelStatus("err", "Could not copy CSV lines: " + err.message));
+      }
+      function downloadDailyOrdersCsv() {
+        const rows = getDailyOrderRowsForOutput();
+        if (!rows.length) return setLabelStatus("warn", "No Daily Orders rows to download.");
+        const header = "DATE SOLD,CUSTOM LABEL,QTY,ORDERNUMBER";
+        const body = rows.map((row) => [csvEscape(row.dateSold), csvEscape(row.customLabel), row.qty, csvEscape(row.orderNumber)].join(","));
+        const blob = new Blob([[header, ...body].join("\n") + "\n"], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "hw_orders_needing_pull.csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setLabelStatus("ok", `Downloaded ${rows.length} Daily Orders row${rows.length === 1 ? "" : "s"}.`);
+      }
+      function clearDailyOrders() {
+        document.getElementById("dailyOrdersInput").value = "";
+        parsedDailyOrderRows = [];
+        renderDailyOrders([]);
+        setLabelStatus("idle", "Daily Orders cleared.");
+      }
+
+      const LABEL_W_DOTS = 812;
+      const LABEL_H_DOTS = 203;
+      const DARKNESS = 18;
+      const PRINT_SPEED = 6;
+      let selectedPrinter = null;
+      let bpAvailable = false;
+      let discoveredDevices = [];
+      let batchLabels = [];
+      let batchIndex = 0;
+      let printedIndexes = new Set();
+
+      window.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("input").forEach((el) => {
+          if (el.id === "csvFile") return;
+          el.addEventListener("input", refresh);
+          el.addEventListener("change", refresh);
+        });
+        document.getElementById("csvFile").addEventListener("change", loadBatchFromFile);
+        refresh();
+        updateBatchUI();
+        loadDefaultCsv();
+        initBrowserPrint();
+      });
+
+      function switchPrintTab(tab) {
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+        document.getElementById("dailyTabPanel").classList.toggle("active", tab === "daily");
+        document.getElementById("batchTabPanel").classList.toggle("active", tab === "batch");
+        document.getElementById("singleTabPanel").classList.toggle("active", tab === "single");
+        setLabelStatus("idle", tab === "daily" ? "Daily Orders parser selected." : tab === "batch" ? "Batch CSV mode selected." : "Single label mode selected.");
+      }
+      function initBrowserPrint() {
+        if (typeof BrowserPrint === "undefined") {
+          bpAvailable = false;
+          setBadge("error", "No SDK");
+          setLabelStatus("warn", "BrowserPrint SDK not loaded. Keep BrowserPrint-3.1.250.min.js in this folder.");
+          return;
+        }
+        bpAvailable = true;
+        discoverPrinters();
+      }
+      function discoverPrinters() {
+        if (!bpAvailable) return;
+        setBadge("scanning", "Scanning...");
+        setLabelStatus("idle", "Discovering printers...");
+        BrowserPrint.getLocalDevices(
+          (devices) => {
+            discoveredDevices = devices || [];
+            if (!discoveredDevices.length) {
+              selectedPrinter = null;
+              setBadge("error", "No printers");
+              setLabelStatus("warn", "No printers found. Check Zebra Browser Print and the GK420d connection.");
+              renderPrinterList();
+              return;
+            }
+            if (!selectedPrinter) {
+              selectedPrinter = discoveredDevices.find((d) => d.uid === "ZDesigner GK420d") || discoveredDevices.find((d) => d.name === "ZDesigner GK420d") || discoveredDevices.find((d) => d.connection === "driver") || discoveredDevices.find((d) => d.connection === "usb") || discoveredDevices[0];
+            }
+            setBadge("connected", truncate(selectedPrinter.name || selectedPrinter.uid, 24));
+            setLabelStatus("ok", "Connected: " + (selectedPrinter.name || selectedPrinter.uid));
+            renderPrinterList();
+          },
+          (err) => { selectedPrinter = null; setBadge("error", "Error"); setLabelStatus("err", "Printer discovery error: " + err); },
+          "printer",
+        );
+      }
+      function loadDefaultCsv() {
+        fetch("labels.csv", { cache: "no-store" }).then((res) => res.ok ? res.text() : "").then((text) => {
+          if (!text.trim()) return;
+          document.getElementById("csvInput").value = text;
+          loadBatchFromText(true);
+        }).catch(() => {});
+      }
+      function refresh() { updatePreview(); }
+      function cleanChargerValue(s) {
+        let value = cleanText(s);
+        if (!value) return "";
+        if (/^(NO\s*CHARGER|NONE|N\/A|NA|NOT\s*FOUND|UNKNOWN)$/i.test(value)) return "";
+        const wattsMatch = value.match(/(\d{2,3})\s*W/i);
+        const watts = wattsMatch ? wattsMatch[1] + "W" : "";
+        if (/MAGSAFE\s*3/i.test(value)) return watts ? watts + " MS3" : "MS3";
+        if (/MAGSAFE\s*2/i.test(value)) return watts ? watts + " MS2" : "MS2";
+        if (/MAGSAFE/i.test(value)) return watts ? watts + " MS1" : "MS1";
+        value = value.replace(/USB\s*C/gi, "USB-C").replace(/USB-\s*C/gi, "USB-C");
+        return value;
+      }
+      function detectCharger(text) {
+        const s = String(text || "").toUpperCase();
+        if (!s.trim()) return "";
+        if (/NO\s*CHARGER|WITHOUT\s*CHARGER|NO\s*AC|NOT\s+INCLUDED|MISSING\s+CHARGER/.test(s)) return "";
+        if (/USB\s*-?\s*C|TYPE\s*-?\s*C/.test(s)) return /140W/.test(s) ? "140W USB-C" : /96W/.test(s) ? "96W USB-C" : /87W/.test(s) ? "87W USB-C" : /67W/.test(s) ? "67W USB-C" : /61W/.test(s) ? "61W USB-C" : /65W/.test(s) ? "65W USB-C" : /45W/.test(s) ? "45W USB-C" : /30W/.test(s) ? "30W USB-C" : "USB-C";
+        if (/MAGSAFE\s*3/.test(s)) return /140W/.test(s) ? "140W MS3" : /96W/.test(s) ? "96W MS3" : "MS3";
+        if (/MAGSAFE\s*2/.test(s)) return /85W/.test(s) ? "85W MS2" : /60W/.test(s) ? "60W MS2" : /45W/.test(s) ? "45W MS2" : "MS2";
+        if (/MAGSAFE/.test(s)) return /85W/.test(s) ? "85W MS1" : /60W/.test(s) ? "60W MS1" : /45W/.test(s) ? "45W MS1" : "MS1";
+        if (/BARREL|ROUND\s*TIP|AC\s*ADAPTER/.test(s)) return /65W/.test(s) ? "65W AC" : /45W/.test(s) ? "45W AC" : "AC Adapter";
+        return "";
+      }
+      function getLabelData() {
+        const current = clampInt(document.getElementById("currentNum").value, 1, 9999);
+        const total = clampInt(document.getElementById("totalNum").value, 1, 9999);
+        const order = cleanText(document.getElementById("orderNumber").value || "");
+        const barcode = cleanBarcode(document.getElementById("barcodeValue").value || "");
+        const sku = cleanText(document.getElementById("skuValue").value || "");
+        const charger = cleanChargerValue(document.getElementById("chargerValue").value || "");
+        return { current, total, countText: current + " of " + total, order: order || "09 - 14566 - 35674", barcode: barcode || "C02VG2EMG8WL", sku: sku || "SKU-EXAMPLE", charger, copies: clampInt(document.getElementById("copies").value, 1, 99) };
+      }
+      function fitDots(len, max, min, goodLen) { return len <= goodLen ? max : Math.max(min, Math.floor(max - (len - goodLen) * 1.3)); }
+      function fitPx(len, max, min, goodLen) { return len <= goodLen ? max : Math.max(min, Math.floor(max - (len - goodLen) * 1.15)); }
+      function updatePreview() {
+        const d = getLabelData();
+        const count = document.getElementById("pvCount");
+        count.textContent = d.countText;
+        count.style.fontSize = fitPx(d.countText.length, 28, 13, 7) + "px";
+        const order = document.getElementById("pvOrder");
+        order.textContent = d.order;
+        order.style.fontSize = fitPx(d.order.length, 20, 11, 20) + "px";
+        const human = document.getElementById("pvHuman");
+        human.textContent = d.barcode;
+        human.style.fontSize = fitPx(d.barcode.length, 17, 9, 14) + "px";
+        const sku = document.getElementById("pvSku");
+        sku.textContent = d.sku;
+        sku.style.fontSize = fitPx(d.sku.length, 15, 9, 24) + "px";
+        const charger = document.getElementById("pvCharger");
+        charger.textContent = d.charger || "";
+        if (d.charger) charger.style.fontSize = fitPx(d.charger.length, 13, 8, 12) + "px";
+        generatePreviewBars(d.barcode);
+      }
+      function generatePreviewBars(value) {
+        const container = document.getElementById("pvBars");
+        container.innerHTML = "";
+        const count = Math.max(32, Math.min(90, value.length * 5));
+        for (let i = 0; i < count; i++) {
+          const c = value.charCodeAt(i % value.length) || 67;
+          const bar = document.createElement("span");
+          bar.style.width = ((c + i) % 5 === 0 ? 3 : (c + i) % 3 === 0 ? 1 : 2) + "px";
+          container.appendChild(bar);
+        }
+      }
+      function getBarcodeConfig(value) {
+        const len = Math.max(1, value.length);
+        const maxWidth = 390;
+        let moduleWidth = len > 22 ? 1 : 2;
+        let estimatedWidth = Math.ceil((len + 4) * 11 * moduleWidth);
+        if (estimatedWidth > maxWidth) { moduleWidth = 1; estimatedWidth = Math.ceil((len + 4) * 11); }
+        const width = Math.min(maxWidth, estimatedWidth);
+        const x = Math.round((LABEL_W_DOTS - width) / 2);
+        return { moduleWidth, height: len > 30 ? 46 : 62, x: Math.max(170, x) };
+      }
+      function buildZPL() {
+        const d = getLabelData();
+        const title = "SOLD EBAY ORDER:";
+        const titleFont = 28;
+        const orderFont = fitDots(d.order.length, 26, 14, 20);
+        const barcodeTextFont = fitDots(d.barcode.length, 22, 12, 14);
+        const skuFont = fitDots(d.sku.length, 22, 11, 24);
+        const countFont = fitDots(d.countText.length, 29, 13, 7);
+        const chargerFont = fitDots(d.charger.length, 18, 11, 8);
+        const barcodeCfg = getBarcodeConfig(d.barcode);
+        const hasCharger = Boolean(d.charger);
+        const chargerBoxX = 660, chargerBoxY = 152, chargerBoxW = 132, chargerBoxH = 44;
+        let chargerZpl = "";
+        if (hasCharger) {
+          chargerZpl = `\n^FO${chargerBoxX},${chargerBoxY}^GB${chargerBoxW},${chargerBoxH},2^FS\n^A0N,${chargerFont},${chargerFont}\n^FO${chargerBoxX + 6},${chargerBoxY + 12}^FB${chargerBoxW - 12},2,0,C,0^FD${zplSafe(d.charger)}^FS`;
+        }
+        return `^XA
+^PW${LABEL_W_DOTS}
+^LL${LABEL_H_DOTS}
+^MNY
+^PR${PRINT_SPEED},${PRINT_SPEED}
+^MD${DARKNESS}
+^LH0,0
+^CI28
+
+^A0N,${countFont},${countFont}
+^FO38,64^FD${zplSafe(d.countText)}^FS
+
+^A0N,${titleFont},${titleFont}
+^FO0,10^FB${LABEL_W_DOTS},1,0,C,0^FD${zplSafe(title)}^FS
+
+^A0N,${orderFont},${orderFont}
+^FO0,42^FB${LABEL_W_DOTS},1,0,C,0^FD${zplSafe(d.order)}^FS
+
+^A0N,${barcodeTextFont},${barcodeTextFont}
+^FO0,74^FB${LABEL_W_DOTS},1,0,C,0^FD${zplSafe(d.barcode)}^FS
+
+^BY${barcodeCfg.moduleWidth},2,${barcodeCfg.height}
+^FO${barcodeCfg.x},94^BCN,${barcodeCfg.height},N,N,N
+^FD${zplSafe(d.barcode)}^FS
+
+^A0N,${skuFont},${skuFont}
+^FO0,170^FB${LABEL_W_DOTS},1,0,C,0^FD${zplSafe(d.sku)}^FS
+${chargerZpl}
+
+^PQ${d.copies},0,1,Y
+^XZ`.trim();
+      }
+      function printLabel() {
+        if (!bpAvailable) return setLabelStatus("err", "Browser Print SDK is not loaded.");
+        if (!selectedPrinter) return setLabelStatus("warn", "No printer selected. Click the printer badge and select the GK420d.");
+        const btn = document.getElementById("printBtn");
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+        selectedPrinter.send(buildZPL(), () => { setLabelStatus("ok", "Label sent to " + (selectedPrinter.name || selectedPrinter.uid)); btn.disabled = false; btn.textContent = "Print Label"; }, (err) => { setLabelStatus("err", "Print error: " + err); btn.disabled = false; btn.textContent = "Print Label"; });
+      }
+      function testPrint() {
+        if (!bpAvailable || !selectedPrinter) return setLabelStatus("warn", "No printer selected.");
+        selectedPrinter.send("^XA^PW812^LL203^A0N,36,36^FO40,80^FDTEST LABEL OK^FS^XZ", () => setLabelStatus("ok", "Test label sent."), (err) => setLabelStatus("err", "Test print failed: " + err));
+      }
+      function normalizeHeader(h) { return String(h || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""); }
+      function parseCsv(text) {
+        const rows = [];
+        let row = [], cell = "", quoted = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i], next = text[i + 1];
+          if (quoted && ch === '"' && next === '"') { cell += '"'; i++; continue; }
+          if (ch === '"') { quoted = !quoted; continue; }
+          if (ch === "," && !quoted) { row.push(cell); cell = ""; continue; }
+          if ((ch === "\n" || ch === "\r") && !quoted) { if (ch === "\r" && next === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; continue; }
+          cell += ch;
+        }
+        row.push(cell);
+        rows.push(row);
+        const nonEmpty = rows.filter((r) => r.some((c) => String(c).trim() !== ""));
+        if (!nonEmpty.length) return [];
+        const headers = nonEmpty.shift().map((h) => normalizeHeader(h));
+        return nonEmpty.map((r) => { const obj = {}; headers.forEach((h, i) => { obj[h] = (r[i] || "").trim(); }); return obj; });
+      }
+      function loadBatchFromFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => { document.getElementById("csvInput").value = reader.result; loadBatchFromText(); };
+        reader.onerror = () => setLabelStatus("err", "Could not read CSV file.");
+        reader.readAsText(file);
+      }
+      function loadBatchFromText(isAutoLoad) {
+        const raw = document.getElementById("csvInput").value.trim();
+        if (!raw) { if (!isAutoLoad) setLabelStatus("warn", "Paste CSV or choose a CSV file first."); return; }
+        try { loadBatch(parseCsv(raw), isAutoLoad); }
+        catch (err) { setLabelStatus("err", "CSV parse error: " + err.message); }
+      }
+      function loadBatch(rows, isAutoLoad) {
+        if (!rows.length) return setLabelStatus("err", "CSV is empty.");
+        const normalized = rows.map((item) => {
+          const qty = clampInt(item.qty || item.quantity || 1, 1, 9999);
+          const sku = cleanText(item.sku || item.SKU || item.item_sku || "");
+          const order = cleanText(item.order_number || item.order || item.ordernumber || item.orderNumber || "");
+          const barcode = cleanBarcode(item.serial_number || item.serial || item.sn || item.custom_label || item.barcode || "");
+          const charger = cleanChargerValue(item.charger || item.charger_type || item.power_adapter || detectCharger([sku, item.title, item.description].join(" ")) || "");
+          return { sku, order, barcode, charger, qty, total: qty, current: 0, pull_display: "" };
+        });
+        const invalid = normalized.findIndex((item) => !item.sku || !item.order || !item.barcode);
+        if (invalid !== -1) return setLabelStatus("err", "CSV row " + (invalid + 1) + " is missing sku, order_number, or serial_number.");
+        const orderTotals = {};
+        normalized.forEach((item) => { orderTotals[item.order] = (orderTotals[item.order] || 0) + 1; });
+        const orderCounters = {};
+        normalized.forEach((item) => { orderCounters[item.order] = (orderCounters[item.order] || 0) + 1; item.current = orderCounters[item.order]; item.total = orderTotals[item.order]; item.pull_display = item.current + " of " + item.total; });
+        batchLabels = normalized;
+        batchIndex = 0;
+        printedIndexes = new Set();
+        switchPrintTab("batch");
+        setFormFromBatchIndex(0);
+        updateBatchUI();
+        setLabelStatus("ok", (isAutoLoad ? "Auto-loaded " : "Loaded ") + batchLabels.length + " labels from CSV.");
+      }
+      function setFormFromBatchIndex(index) {
+        if (!batchLabels.length) return;
+        batchIndex = Math.max(0, Math.min(batchLabels.length - 1, index));
+        const item = batchLabels[batchIndex];
+        document.getElementById("currentNum").value = item.current || 1;
+        document.getElementById("totalNum").value = item.total || item.qty || 1;
+        document.getElementById("orderNumber").value = item.order;
+        document.getElementById("barcodeValue").value = item.barcode;
+        document.getElementById("skuValue").value = item.sku;
+        document.getElementById("chargerValue").value = item.charger || "";
+        document.getElementById("copies").value = 1;
+        refresh();
+        updateBatchUI();
+      }
+      function selectPreviousBatchLabel() { if (!batchLabels.length) return setLabelStatus("warn", "No batch loaded."); setFormFromBatchIndex(batchIndex - 1); }
+      function selectNextBatchLabel() { if (!batchLabels.length) return setLabelStatus("warn", "No batch loaded."); setFormFromBatchIndex(batchIndex + 1); }
+      function clearBatch() {
+        batchLabels = [];
+        batchIndex = 0;
+        printedIndexes = new Set();
+        document.getElementById("csvInput").value = "";
+        document.getElementById("csvFile").value = "";
+        updateBatchUI();
+        setLabelStatus("idle", "Batch cleared.");
+      }
+      function updateBatchUI() {
+        const count = document.getElementById("batchCount"), current = document.getElementById("batchCurrent"), printed = document.getElementById("batchPrinted"), progress = document.getElementById("batchProgress"), queue = document.getElementById("batchQueue");
+        if (!count || !current || !printed || !progress || !queue) return;
+        count.textContent = batchLabels.length;
+        current.textContent = batchLabels.length ? batchIndex + 1 : "-";
+        printed.textContent = printedIndexes.size;
+        progress.style.width = batchLabels.length ? Math.round((printedIndexes.size / batchLabels.length) * 100) + "%" : "0%";
+        if (!batchLabels.length) { queue.innerHTML = '<div class="small" style="padding:12px">No batch loaded.</div>'; return; }
+        queue.innerHTML = "";
+        batchLabels.forEach((item, idx) => {
+          const row = document.createElement("div");
+          row.className = "queue-row" + (idx === batchIndex ? " active" : "") + (printedIndexes.has(idx) ? " printed" : "");
+          row.onclick = () => setFormFromBatchIndex(idx);
+          const chargerLine = item.charger ? "<span>Charger: " + escHtml(item.charger) + "</span>" : "";
+          row.innerHTML = '<div class="queue-index">' + escHtml(item.pull_display || idx + 1 + " of " + batchLabels.length) + '</div><div class="queue-main"><strong>' + escHtml(item.barcode) + "</strong><span>Order: " + escHtml(item.order) + "</span><span>SKU: " + escHtml(item.sku) + "</span>" + chargerLine + "</div>";
+          queue.appendChild(row);
+        });
+      }
+      function printBatch() {
+        if (!batchLabels.length) return setLabelStatus("warn", "No batch loaded. Paste CSV or upload labels.csv first.");
+        if (!bpAvailable) return setLabelStatus("err", "Browser Print SDK is not loaded.");
+        if (!selectedPrinter) return setLabelStatus("warn", "No printer selected. Click the printer badge and select the GK420d.");
+        const batchBtn = document.getElementById("batchPrintBtn"), printBtn = document.getElementById("printBtn");
+        batchBtn.disabled = true;
+        printBtn.disabled = true;
+        batchBtn.textContent = "Printing...";
+        printBatchAt(0).then(() => setLabelStatus("ok", "Batch complete: " + batchLabels.length + " labels sent.")).catch((err) => setLabelStatus("err", "Batch print stopped: " + err)).finally(() => { batchBtn.disabled = false; printBtn.disabled = false; batchBtn.textContent = "Print Batch"; updateBatchUI(); });
+      }
+      function printBatchAt(index) {
+        if (index >= batchLabels.length) return Promise.resolve();
+        setFormFromBatchIndex(index);
+        setLabelStatus("idle", "Printing label " + (index + 1) + " of " + batchLabels.length + "...");
+        return new Promise((resolve, reject) => { selectedPrinter.send(buildZPL(), resolve, reject); }).then(() => { printedIndexes.add(index); updateBatchUI(); return printBatchAt(index + 1); });
+      }
+      function renderPrinterList() {
+        const list = document.getElementById("printerList");
+        list.innerHTML = "";
+        if (!discoveredDevices.length) { list.innerHTML = '<div class="small">No printers found.</div>'; return; }
+        discoveredDevices.forEach((device) => {
+          const div = document.createElement("div");
+          div.className = "printer-item" + (selectedPrinter && device.uid === selectedPrinter.uid ? " selected" : "");
+          div.innerHTML = "<strong>" + escHtml(device.name || "Unknown") + '</strong><div class="small">' + escHtml(device.connection || "") + " | " + escHtml(device.uid || "") + "</div>";
+          div.onclick = () => { selectedPrinter = device; setBadge("connected", truncate(device.name || device.uid, 24)); setLabelStatus("ok", "Selected: " + (device.name || device.uid)); renderPrinterList(); closeModal(); };
+          list.appendChild(div);
+        });
+      }
+      function openPrinterModal() { document.getElementById("modalOverlay").classList.add("open"); if (bpAvailable) discoverPrinters(); }
+      function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); }
+      function closeModalOnBg(e) { if (e.target.id === "modalOverlay") closeModal(); }
+      function setLabelStatus(type, msg) {
+        const bar = document.getElementById("statusbar");
+        bar.className = "status";
+        if (type === "ok") bar.classList.add("ok");
+        if (type === "err") bar.classList.add("err");
+        if (type === "warn") bar.classList.add("warn");
+        bar.textContent = msg;
+      }
+      function setBadge(state, label) {
+        const badge = document.getElementById("printerBadge"), dot = document.getElementById("statusDot"), text = document.getElementById("badgeText");
+        badge.className = "printer-badge";
+        dot.className = "dot";
+        if (state === "connected") badge.classList.add("connected");
+        if (state === "error") badge.classList.add("error");
+        if (state === "scanning") dot.classList.add("pulse");
+        text.textContent = label;
+      }
+    </script>
+  </body>
+</html>
